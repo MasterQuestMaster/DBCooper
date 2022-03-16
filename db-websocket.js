@@ -28,7 +28,10 @@ const dbWebSocket = class {
         this.heartbeatTimer = setInterval(() => {
             console.log("Send Heartbeat");
             const action = (dbws.promises["Search cards"]) ? "Searching" : "Heartbeat";
-            Send(dbws.websocket, {"action": action});
+
+            if(dbws.websocket.readyState !== W3CWebSocket.CLOSED && dbws.websocket.readyState !== W3CWebSocket.CLOSING) {
+                Send(dbws.websocket, {"action": action});
+            }
         }, 30000);
 
         //Timeout after a certain period of no action.
@@ -223,13 +226,13 @@ function handleSocketResponse(e, dbws) {
             break;
         case "Already logged in":
         case "Rejected":
-            console.log("Already logged in");
+            console.log(data.action);
             dbws.executePromiseCallback("Connect", "reject", data.action);
         case "Error":
             console.log("Received error from socket");
             dbws.rejectAllPromises(e.data);
         default:
-            console.log("Received response: " + data.action);
+            //console.log("Received response: " + data.action);
             break;
     }
 }
