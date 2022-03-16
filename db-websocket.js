@@ -1,4 +1,5 @@
 const W3CWebSocket = require("websocket").w3cwebsocket;
+const TIMEOUT_MS = 300000;
 
 /*
 
@@ -38,10 +39,7 @@ const dbWebSocket = class {
         //TODO: Make Timeout clear after search (have to reset it, so need access to the dbws)
         //TODO: Check if End all sessions causes "reject" message when trying to connect afterwards.
         //TODO: No results for Celeste search??
-        this.timeoutTimer = setTimeout(() => {
-            console.log("End session due to inactivity");
-            dbws.websocket.close();
-        }, 300000); //5 min.
+        this.timeoutTimer = setTimeout(generateTimeoutCallback(dbws), TIMEOUT_MS); //5 min.
     }
 
     async createWebSocketAndConnect() {
@@ -222,6 +220,8 @@ function handleSocketResponse(e, dbws) {
             break;
         case "Search cards":
             console.log("Search cards", e.data);
+            clearTimeout(dbws.timeoutTimer);
+            setTimeout(generateTimeoutCallback(dbws), TIMEOUT_MS);
             dbws.executePromiseCallback("Search cards", "resolve", e.data);
             break;
         case "Already logged in":
@@ -234,6 +234,13 @@ function handleSocketResponse(e, dbws) {
         default:
             //console.log("Received response: " + data.action);
             break;
+    }
+}
+
+function generateTimeoutCallback(dbws) {
+    return function() {
+        console.log("End session due to inactivity");
+        dbws.websocket.close();
     }
 }
 
