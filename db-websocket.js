@@ -37,8 +37,6 @@ const dbWebSocket = class {
 
         //Timeout after a certain period of no action.
         //TODO: Make Timeout clear after search (have to reset it, so need access to the dbws)
-        //TODO: Check if End all sessions causes "reject" message when trying to connect afterwards.
-        //TODO: No results for Celeste search??
         this.timeoutTimer = setTimeout(generateTimeoutCallback(dbws), TIMEOUT_MS); //5 min.
     }
 
@@ -220,6 +218,7 @@ function handleSocketResponse(e, dbws) {
             break;
         case "Search cards":
             console.log("Search cards", e.data);
+            console.log("Timeout timer:", dbws.timeoutTimer);
             clearTimeout(dbws.timeoutTimer);
             setTimeout(generateTimeoutCallback(dbws), TIMEOUT_MS);
             dbws.executePromiseCallback("Search cards", "resolve", e.data);
