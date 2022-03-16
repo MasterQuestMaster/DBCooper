@@ -90,7 +90,7 @@ module.exports = {
                 description += `**Rank**: ${Icon.Rank} ${card.rank} **ATK**: ${card.atk} **DEF**: ${card.def}`;
             } else if (card.monster_color === "Link") {
                 const arrows = card.arrows; //TODO: arrows from DB are like 00101000 -> convert this to a joinable string like from bastion.
-                description += `**Link Rating**: ${card.link} **ATK**: ${card.atk} **Link Arrows**: ${arrows}`;
+                description += `**Link Rating**: ${card.level} **ATK**: ${card.atk} **Link Arrows**: ${arrows}`;
             } else {
                 description += `**Level**: ${Icon.Level} ${card.level} **ATK**: ${card.atk} **DEF**: ${card.def}`;
             }

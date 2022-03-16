@@ -22,6 +22,23 @@ const dbWebSocket = class {
 
         this.websocket = false;
         this.promises = {}; //{"connect":{"resolve":func, "reject":func}}
+
+        //Heartbeat (if this is not sent, connection will terminate after a short time)
+        var dbws = this;
+        this.heartbeatTimer = setInterval(() => {
+            console.log("Send Heartbeat");
+            const action = (dbws.promises["Search cards"]) ? "Searching" : "Heartbeat";
+            Send(dbws.websocket, {"action": action});
+        }, 30000);
+
+        //Timeout after a certain period of no action.
+        //TODO: Make Timeout clear after search (have to reset it, so need access to the dbws)
+        //TODO: Check if End all sessions causes "reject" message when trying to connect afterwards.
+        //TODO: No results for Celeste search??
+        this.timeoutTimer = setTimeout(() => {
+            console.log("End session due to inactivity");
+            dbws.websocket.close();
+        }, 300000); //5 min.
     }
 
     async createWebSocketAndConnect() {
@@ -50,7 +67,9 @@ const dbWebSocket = class {
 
             dbws.websocket.onclose = function() {
                 console.log("Web Socket Closed");
-                this.isAuthenticated = false;
+                dbws.isAuthenticated = false;
+                clearInterval(dbws.heartbeatTimer);
+                dbws.rejectAllPromises("WebSocket closed");
             };
 
             dbws.websocket.onmessage = function(e) {
@@ -59,7 +78,6 @@ const dbWebSocket = class {
             };
         });
     }
-
     async searchForCustomCards(searchName="",searchEffect="") {
         const dbws = this;
 
@@ -100,6 +118,18 @@ const dbWebSocket = class {
             delete this.promises[action];
         }
     }
+
+    rejectAllPromises(reason) {
+        if(this.promises.length == 0)
+            return;
+        
+        for(const prom in this.promises) {
+            if(typeof prom["reject"] === "function") prom["reject"](reason);
+        }
+
+        //clear list
+        this.promises = {};
+    }
 };
 
 function sendConnectRequest(dbws) {
@@ -139,7 +169,7 @@ function sendSearchRequest(dbws, searchName="", searchEffect="") {
             "action":"Search cards",
             "search":{
                 "name": searchName,
-                "effect":searchEffect,
+                "effect": searchEffect,
                 "card_type":"",
                 "monster_color":"",
                 "type":"",
@@ -192,8 +222,12 @@ function handleSocketResponse(e, dbws) {
             dbws.executePromiseCallback("Search cards", "resolve", e.data);
             break;
         case "Already logged in":
+        case "Rejected":
             console.log("Already logged in");
-            dbws.executePromiseCallback("Connect", "reject", "Already logged in");
+            dbws.executePromiseCallback("Connect", "reject", data.action);
+        case "Error":
+            console.log("Received error from socket");
+            dbws.rejectAllPromises(e.data);
         default:
             console.log("Received response: " + data.action);
             break;
