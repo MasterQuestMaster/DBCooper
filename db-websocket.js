@@ -1,4 +1,5 @@
 const W3CWebSocket = require("websocket").w3cwebsocket;
+const { Timer } = require("./timer");
 const TIMEOUT_MS = 300000;
 
 /*
@@ -10,6 +11,9 @@ Timeouts:
 Search promise needs timeout in case there's no response from server.
 When connected, the session should not run forever, but close after X time without a request.
 When search request comes, if not auth, try to auth first.
+
+TODO:
+Doesn't reset timeout after search result even though we use clearTimeout.
 
 */
 
@@ -26,27 +30,38 @@ const dbWebSocket = class {
 
         //Heartbeat (if this is not sent, connection will terminate after a short time)
         var dbws = this;
-        this.heartbeatTimer = setInterval(() => {
+        this.heartbeatTimer = new Timer(30000, () => {
             console.log("Send Heartbeat");
-            const action = (dbws.promises["Search cards"]) ? "Searching" : "Heartbeat";
-
+            
             if(dbws.websocket.readyState !== W3CWebSocket.CLOSED && dbws.websocket.readyState !== W3CWebSocket.CLOSING) {
+                const action = (dbws.promises["Search cards"]) ? "Searching" : "Heartbeat";
                 Send(dbws.websocket, {"action": action});
             }
-        }, 30000);
+        });
 
         //Timeout after a certain period of no action.
-        //TODO: Make Timeout clear after search (have to reset it, so need access to the dbws)
-        this.timeoutTimer = setTimeout(generateTimeoutCallback(dbws), TIMEOUT_MS); //5 min.
+        this.timeoutTimer = new Timer(TIMEOUT_MS, () => {
+            console.log("End session due to inactivity");
+            dbws.websocket.close();
+            //when timeout, use a new session when logging in the next time.
+            dbws.session = randomHex();
+        });
     }
 
     async createWebSocketAndConnect() {
         const dbws = this;
+        console.log("use session: ", dbws.session);
 
         return new Promise(function(resolve, reject) {
             //save promise for onmessage
             dbws.addPromiseCallback("Connect", resolve, reject);
-            dbws.websocket = new W3CWebSocket("ws://duel.duelingbook.com:8443/");
+
+            try {
+                dbws.websocket = new W3CWebSocket("ws://duel.duelingbook.com:8443/");
+            }
+            catch(e) {
+                console.log("Failed to create websocket:", e);
+            }
 
             dbws.websocket.onerror = function(event) {
                 console.log("socket error", event);
@@ -61,13 +76,16 @@ const dbWebSocket = class {
 
             dbws.websocket.onopen = function() {
                 console.log("WebSocket Client Connected");
+                dbws.heartbeatTimer.start();
+                dbws.timeoutTimer.start();
                 sendConnectRequest(dbws);
             };
 
             dbws.websocket.onclose = function() {
                 console.log("Web Socket Closed");
                 dbws.isAuthenticated = false;
-                clearInterval(dbws.heartbeatTimer);
+                dbws.heartbeatTimer.reset();
+                dbws.timeoutTimer.reset();
                 dbws.rejectAllPromises("WebSocket closed");
             };
 
@@ -218,9 +236,7 @@ function handleSocketResponse(e, dbws) {
             break;
         case "Search cards":
             console.log("Search cards", e.data);
-            console.log("Timeout timer:", dbws.timeoutTimer);
-            clearTimeout(dbws.timeoutTimer);
-            setTimeout(generateTimeoutCallback(dbws), TIMEOUT_MS);
+            dbws.timeoutTimer.restart();
             dbws.executePromiseCallback("Search cards", "resolve", e.data);
             break;
         case "Already logged in":
@@ -233,13 +249,6 @@ function handleSocketResponse(e, dbws) {
         default:
             //console.log("Received response: " + data.action);
             break;
-    }
-}
-
-function generateTimeoutCallback(dbws) {
-    return function() {
-        console.log("End session due to inactivity");
-        dbws.websocket.close();
     }
 }
 

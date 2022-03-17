@@ -83,14 +83,14 @@ module.exports = {
             embed.setColor(Colour[card.monster_color] ?? Colour["Orange"]); 
 
             let description =
-                `**Type**: ${RaceIcon[card.type]} ${card.type} | ${card.ability}\n` +
+                `**Type**: ${RaceIcon[card.type]} ${card.type} / ${getTypeline(card)}\n` +
                 `**Attribute**: ${AttributeIcon[card.attribute]} ${card.attribute}\n`;
 
             if (card.monster_color === "Xyz") {
                 description += `**Rank**: ${Icon.Rank} ${card.rank} **ATK**: ${card.atk} **DEF**: ${card.def}`;
             } else if (card.monster_color === "Link") {
-                const arrows = card.arrows; //TODO: arrows from DB are like 00101000 -> convert this to a joinable string like from bastion.
-                description += `**Link Rating**: ${card.level} **ATK**: ${card.atk} **Link Arrows**: ${arrows}`;
+                const arrows = getLinkArrows(card);
+                description += `**Link Rating**: ${card.level} **ATK**: ${card.atk} **Link Arrows**: ${arrows.join("")}`;
             } else {
                 description += `**Level**: ${Icon.Level} ${card.level} **ATK**: ${card.atk} **DEF**: ${card.def}`;
             }
@@ -129,6 +129,36 @@ module.exports = {
 
         return [embed];
     }
+}
+
+function getTypeline(card) {
+    const extraMonsterTypes = ["Fusion","Synchro","Xyz","Link"];
+
+    let types = [];
+    if(extraMonsterTypes.includes(card.monster_color) || card.pendulum == 1) {
+        types.push(card.monster_color);
+    }
+
+    if(card.ability) {
+        types.push(card.ability);
+    }
+
+    if(card.monster_color === "Normal") {
+        types.push("Normal");
+    }
+    else if(card.is_effect === 1) {
+        types.push("Effect");
+    }
+
+    return types.join(" / ");
+}
+
+function getLinkArrows(card) {
+    const allArrows = ["↖️","⬆️", "↗️","➡️","↘️","⬇️","↙️","⬅️"];
+    return card.arrows.split("")
+        .map((value, index) => value == "1" ? allArrows[index] : "")
+        .filter((value) => value)
+        .reverse();
 }
 
 //These functions are from DB.
