@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require("@discordjs/builders");
-const { MessageActionRow } = require("discord.js");
 const { DBWebSocket } = require("../db-websocket");
 const { createCardEmbed } = require("../card-embed.js");
+const { Constants } = require("discord.js");
 
 let dbws = false;
 
@@ -11,8 +11,8 @@ module.exports = {
         .setDescription("Searches custom from DB.")
         .addStringOption(option =>
             option.setName("search-name")
-                .setDescription("Search criteria for card name.")
-                .setRequired(false))
+                .setDescription("Search criteria for card name. ('*' searches everything)")
+                .setRequired(true))
         .addStringOption(option =>
             option.setName("search-effect")
                 .setDescription("Search criteria for effect. Also accepts card author.")
@@ -20,10 +20,10 @@ module.exports = {
 
     async execute(interaction) {
 
-        await interaction.deferReply();
+        let searchName = interaction.options.getString("search-name");
+        let searchEffect = interaction.options.getString("search-effect") ?? ""; //also searches author.
 
-        const searchName = interaction.options.getString("search-name") ?? "";
-        const searchEffect = interaction.options.getString("search-effect") ?? ""; //also searches author.
+        await interaction.deferReply();
 
         if (!dbws) {
             console.log("create new websocket instance");
@@ -37,7 +37,7 @@ module.exports = {
             }
             catch (e) {
                 console.error("Failed to connect to websocket.", e);
-                await interaction.editReply({ content: "Could not connect to DuelingBook." });
+                await interaction.editReply({ content: "I couldn't connect to DB. Maybe I've been found out again. Better wait a bit before trying again." });
                 return;
             }
         }
@@ -48,15 +48,26 @@ module.exports = {
             var results = JSON.parse(searchResults);
         }
         catch (e) {
-            console.error("Error searching, or parsing the response from the server.", e);
-            await interaction.editReply({ content: "Something went wrong trying to search DuelingBook." });
+            if(e.message === "timeout") {
+                console.error("Search timeout reached");
+                await interaction.editReply({ content: "Your search took way too long, so I stopped it for you." });
+            }
+            else if(e.message.includes("JSON.parse")) {
+                console.error("Error parsing search results");
+                await interaction.editReply({content: "I got something from DB, but it's not readable for me."});
+            }
+            else {
+                console.error("Error searching DuelingBook", e);
+                await interaction.editReply({ content: "Mission failed! I ran into a problem while searching DB." });
+            }
+
             return;
         }
 
         //const results = {"full_search":false,"total":1,"cards":[{"def":"?","monster_color":"Link","arrows":"00101000","is_effect":1,"scale":0,"pic":"2","type":"Warrior","ocg":0,"atk":"1900","tcg":0,"id":2046112,"attribute":"LIGHT","ability":"","pendulum":0,"flip":0,"level":2,"custom":1,"serial_number":"","card_type":"Monster","tcg_limit":3,"ocg_limit":3,"rush":0,"effect":"2 monsters, including \"Celeste, Ashen Squire\"\nIf this card is Link Summoned: You can send 1 face-up monster from your Extra Deck to the GY; Special Summon 1 Level 3 or lower Pendulum Monster from your Deck with a different Attribute from the sent monster and face-up monsters in your Extra Deck. You can only use this effect of \"Celeste, Ashen Knight\" once per turn. You cannot Special Summon Level 5 or higher monsters from your hand or Deck the turn you activate this effect.","name":"Celeste, Ashen Knight","pendulum_effect":"","treated_as":"Celeste, Ashen Knight","username":"MasterQuestMaster"}],"action":"Search cards","page":0,"millis":595};
 
         if (results.total == 0) {
-            await interaction.editReply({ content: "Sorry, there are no results for your search" });
+            await interaction.editReply({ content: "Seems like there were no results. Maybe the cards are private?" });
             return;
         }
         else if (results.total == 1) {
