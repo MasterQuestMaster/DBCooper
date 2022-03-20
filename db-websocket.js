@@ -1,6 +1,8 @@
 const W3CWebSocket = require("websocket").w3cwebsocket;
 const { Timer } = require("./timer");
 
+require("log-timestamp");
+
 const INACTIVITY_TIMEOUT_SECONDS = 300;
 const SEARCH_TIMEOUT_SECONDS = 30;
 const CHANGE_SESSION_SECONDS = 600;
@@ -144,8 +146,6 @@ const dbWebSocket = class {
 
             dbws.addPromiseCallback("Search cards", resolve, reject);
             dbws.searchTimeoutTimer.start();
-
-            await new Promise(resolve => setTimeout(resolve, 35000));
 
             console.log("Send search request for " + searchName + ", " + searchEffect);
             sendSearchRequest(dbws, searchName, searchEffect);

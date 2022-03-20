@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require("@discordjs/builders");
 const { DBWebSocket } = require("../db-websocket");
 const { createCardEmbed } = require("../card-embed.js");
 const { Constants } = require("discord.js");
+require("log-timestamp");
 
 let dbws = false;
 
